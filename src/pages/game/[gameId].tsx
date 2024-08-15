@@ -18,7 +18,7 @@ export const GamePage: NextPage<{ gameId: string }> = ({ gameId }) => {
   const [game, setGame] = useState<Game | null>(null);
   
   const { data: gameData } = api.game.getById.useQuery({
-    id: parseInt(gameId),
+    id: gameId,
   }, {
     refetchOnMount: false,
     refetchOnWindowFocus: false,
@@ -35,7 +35,7 @@ export const GamePage: NextPage<{ gameId: string }> = ({ gameId }) => {
   const handleDealRound = async () => {
     if (!game) return;
     try {
-      const gameData = await dealRound({ gameId: game.id, players: ["Player 1", "Player 2"] });
+      const gameData = await dealRound({ gameId: game.id.toString(), players: ["Player 1", "Player 2"] });
       console.log({ gameData });
       setGame(gameData);
     } catch (e) {
@@ -47,7 +47,7 @@ export const GamePage: NextPage<{ gameId: string }> = ({ gameId }) => {
   const handleHit = async (playerId: string) => {
     if (!game) return;
     try {
-      const gameData = await hit({ gameId: game.id, playerId });
+      const gameData = await hit({ gameId: game.id.toString(), playerId });
       console.log({ gameData });
       setGame(gameData);
     } catch (e) {
@@ -59,7 +59,7 @@ export const GamePage: NextPage<{ gameId: string }> = ({ gameId }) => {
   const handleStand = async (playerId: string) => {
     if (!game) return;
     try {
-      const gameData = await stand({ gameId: game.id, playerId });
+      const gameData = await stand({ gameId: game.id.toString(), playerId });
       console.log({ gameData });
       setGame(gameData);
     } catch (e) {
@@ -71,7 +71,7 @@ export const GamePage: NextPage<{ gameId: string }> = ({ gameId }) => {
   const handleRevealDealerHand = async () => {
     if (!game) return;
     try {
-      const gameData = await revealDealerHand({ gameId: game.id });
+      const gameData = await revealDealerHand({ gameId: game.id.toString() });
       console.log({ gameData });
       setGame(gameData);
     } catch (e) {

@@ -8,6 +8,8 @@ export const env = createEnv({
    */
   server: {
     NODE_ENV: z.enum(["development", "test", "production"]),
+    KV_API_TOKEN: z.string(),
+    KV_REST_API_URL: z.string(),
   },
 
   /**
@@ -25,6 +27,8 @@ export const env = createEnv({
    */
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
+    KV_API_TOKEN: process.env.NODE_ENV === 'production' ? process.env.KV_REST_API_TOKEN : process.env.KV_DEV_REST_API_TOKEN,
+    KV_REST_API_URL: process.env.NODE_ENV === 'production' ? process.env.KV_REST_API_URL : process.env.KV_DEV_REST_API_URL,
     // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
   },
   /**

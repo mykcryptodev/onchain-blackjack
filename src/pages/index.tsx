@@ -13,7 +13,7 @@ export default function Home() {
       name: "New Game",
       players: ["Player 1", "Player 2"],
     });
-    void router.push(`/game/${game.id}`);
+    void router.push(`/game/${game}`);
   }
 
   return (

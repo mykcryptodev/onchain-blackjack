@@ -2,16 +2,23 @@ import { z } from "zod";
 
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { type Player, type Card, type DealData, type DeckData, type Game } from "~/types/deck";
+import { createClient } from "@vercel/kv";
+import { env } from "~/env";
+ 
+const gameDb = createClient({
+  url: env.KV_REST_API_URL,
+  token: env.KV_API_TOKEN,
+});
 
-const games: Game[] = [
-  {
-    id: 1,
-    name: "Hello World",
-    deckId: "rrhtrll16ecp",
-    dealt: false,
-    players: [],
-  },
-];
+// const games: Game[] = [
+//   {
+//     id: 1,
+//     name: "Hello World",
+//     deckId: "rrhtrll16ecp",
+//     dealt: false,
+//     players: [],
+//   },
+// ];
 
 const cardFids = {
   'A': 99, // jesse pollak
@@ -69,8 +76,11 @@ export const gameRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       const deckRes = await fetch(`https://www.deckofcardsapi.com/api/deck/new/shuffle/?deck_count=${NUM_DECKS}`);
       const deckData = await deckRes.json() as DeckData;
+      const nextGameId = await gameDb.incr("gameId");
+      console.log({ nextGameId });
+      // const games = await gameDb.hgetall("game:1") as unknown as Game[];
       const game: Game = {
-        id: games.length + 1,
+        id: nextGameId,
         name: input.name,
         deckId: deckData.deck_id,
         dealt: false,
@@ -89,24 +99,26 @@ export const gameRouter = createTRPCRouter({
         }))),
       };
       console.log({ game });
-      games.push(game);
-      return game;
+      return await gameDb.hset(nextGameId.toString(), game as unknown as Record<string, unknown>);
     }),
   getById: publicProcedure
     .input(z.object({
-      id: z.number(),
+      id: z.string(),
     }))
     .query(async ({ input }) => {
-      console.log({ games });
-      return games.find((game) => game.id === input.id);
+      const game = await gameDb.hgetall(input.id) as unknown as Game;
+      return {
+        ...game,
+        players: game.players.map(transformPlayerHand),
+      }
     }),
   dealRound: publicProcedure
     .input(z.object({
-      gameId: z.number(),
+      gameId: z.string(),
       players: z.array(z.string()),
     }))
     .mutation(async ({ input }) => {
-      const game = games.find((game) => game.id === input.gameId);
+      const game = await gameDb.hgetall(input.gameId) as unknown as Game;
       if (!game) {
         throw new Error("Game not found");
       }
@@ -135,6 +147,8 @@ export const gameRouter = createTRPCRouter({
       });
       game.dealt = true;
 
+      await gameDb.hset(input.gameId, game as unknown as Record<string, unknown>);
+
       return {
         ...game,
         players: game.players.map(transformPlayerHand),
@@ -142,11 +156,11 @@ export const gameRouter = createTRPCRouter({
     }),
   hit: publicProcedure
     .input(z.object({
-      gameId: z.number(),
+      gameId: z.string(),
       playerId: z.string(),
     }))
     .mutation(async ({ input }) => {
-      const game = games.find((game) => game.id === input.gameId);
+      const game = await gameDb.hgetall(input.gameId) as unknown as Game;
       if (!game) {
         throw new Error("Game not found");
       }
@@ -164,6 +178,9 @@ export const gameRouter = createTRPCRouter({
         const value = parseInt(card.value);
         return isNaN(value) ? total + 10 : total + value;
       }, 0);
+
+      await gameDb.hset(input.gameId, game as unknown as Record<string, unknown>);
+
       return {
         ...game,
         players: game.players.map(transformPlayerHand),
@@ -171,11 +188,11 @@ export const gameRouter = createTRPCRouter({
     }),
   stand: publicProcedure
     .input(z.object({
-      gameId: z.number(),
+      gameId: z.string(),
       playerId: z.string(),
     }))
     .mutation(async ({ input }) => {
-      const game = games.find((game) => game.id === input.gameId);
+      const game = await gameDb.hgetall(input.gameId) as unknown as Game;
       if (!game) {
         throw new Error("Game not found");
       }
@@ -184,6 +201,9 @@ export const gameRouter = createTRPCRouter({
       }
       const player = game.players.find((player) => player.name === input.playerId)!;
       player.isStanding = true;
+
+      await gameDb.hset(input.gameId, game as unknown as Record<string, unknown>);
+
       return {
         ...game,
         players: game.players.map(transformPlayerHand),
@@ -191,10 +211,10 @@ export const gameRouter = createTRPCRouter({
     }),
   revealDealerHand: publicProcedure
     .input(z.object({
-      gameId: z.number(),
+      gameId: z.string(),
     }))
     .mutation(async ({ input }) => {
-      const game = games.find((game) => game.id === input.gameId);
+      const game = await gameDb.hgetall(input.gameId) as unknown as Game;
       if (!game) {
         throw new Error("Game not found");
       }
@@ -209,6 +229,9 @@ export const gameRouter = createTRPCRouter({
 
       const dealer = game.players.find((player) => player.isDealer)!;
       dealer.hand[0]!.isVisible = true;
+
+      await gameDb.hset(input.gameId, game as unknown as Record<string, unknown>);
+
       return {
         ...game,
         players: game.players.map(transformPlayerHand),
