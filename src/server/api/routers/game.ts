@@ -20,6 +20,13 @@ const gameDb = createClient({
 //   },
 // ];
 
+enum PlayerStatus {
+  Waiting = 'waiting',
+  Active = 'active',
+  Busted = 'busted',
+  Standing = 'standing',
+}
+
 const cardFids = {
   'A': 99, // jesse pollak
   'K': 8152, // undefined
@@ -84,19 +91,19 @@ export const gameRouter = createTRPCRouter({
         name: input.name,
         deckId: deckData.deck_id,
         dealt: false,
-        players: [{
-          name: "Dealer",
-          hand: [],
-          isDealer: true,
-          total: 0,
-          isStanding: false,
-        }].concat(input.players.map((player) => ({
+        players: input.players.map((player, index) => ({
           name: player,
           hand: [],
           isDealer: false,
           total: 0,
-          isStanding: false,
-        }))),
+          status: index === 0 ? PlayerStatus.Active : PlayerStatus.Waiting,
+        })).concat([{
+          name: "Dealer",
+          hand: [],
+          isDealer: true,
+          total: 0,
+          status: PlayerStatus.Waiting,
+        }]),
       };
       console.log({ game });
       return await gameDb.hset(nextGameId.toString(), game as unknown as Record<string, unknown>);
@@ -179,6 +186,18 @@ export const gameRouter = createTRPCRouter({
         return isNaN(value) ? total + 10 : total + value;
       }, 0);
 
+      if (player.total > 21) {
+        player.status = PlayerStatus.Busted;
+        const currentPlayerIndex = game.players.findIndex(player => player.name === input.playerId);
+        const nextPlayer = game.players[currentPlayerIndex + 1];
+        if (!nextPlayer) {
+          // dealer busted!
+          // TODO: end the round here instead of throwing an error
+          throw new Error("No player found");
+        }
+        nextPlayer.status === PlayerStatus.Active;
+      }
+
       await gameDb.hset(input.gameId, game as unknown as Record<string, unknown>);
 
       return {
@@ -199,8 +218,19 @@ export const gameRouter = createTRPCRouter({
       if (!game.dealt) {
         throw new Error("Game not dealt");
       }
-      const player = game.players.find((player) => player.name === input.playerId)!;
-      player.isStanding = true;
+      const playerIndex = game.players.findIndex((player) => player.name === input.playerId);
+      const player = game.players[playerIndex];
+      
+      if (!player) {
+        throw new Error("Cannot find player");
+      }
+
+      player.status = PlayerStatus.Standing;
+
+      const nextPlayer = game.players[playerIndex + 1];
+      if (nextPlayer) {
+        nextPlayer.status = PlayerStatus.Active;
+      }
 
       await gameDb.hset(input.gameId, game as unknown as Record<string, unknown>);
 
@@ -222,8 +252,8 @@ export const gameRouter = createTRPCRouter({
         throw new Error("Game not dealt");
       }
       // check that every player is standing or busted
-      const allPlayersStanding = game.players.every((player) => player.isDealer || player.isStanding || player.total > 21);
-      if (!allPlayersStanding) {
+      const allPlayersInactive = game.players.every((player) => player.isDealer || player.status === PlayerStatus.Busted || player.status === PlayerStatus.Standing);
+      if (!allPlayersInactive) {
         throw new Error("All players must stand or bust before revealing dealer hand");
       }
 

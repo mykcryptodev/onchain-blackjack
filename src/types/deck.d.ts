@@ -24,12 +24,19 @@ export type DeckData = {
   remaining: number;
 };
 
+export enum PlayerStatus {
+  Waiting = 'waiting',
+  Active = 'active',
+  Busted = 'busted',
+  Standing = 'standing',
+}
+
 export type Player = {
   name: string;
   hand: Card[];
   isDealer: boolean;
   total: number;
-  isStanding: boolean;
+  status: PlayerStatus;
 }
 
 export interface Game {
